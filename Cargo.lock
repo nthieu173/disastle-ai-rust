@@ -32,7 +32,7 @@ dependencies = [
 [[package]]
 name = "disastle-castle-rust"
 version = "0.1.0"
-source = "git+https://github.com/nthieu173/disastle-castle-rust.git#6430ad56c7afa8d4c7f68d50c1a0e3048ccf7596"
+source = "git+https://github.com/nthieu173/disastle-castle-rust.git#458d090b04768d849ee75a718141aa88beed3a9b"
 dependencies = [
  "serde",
 ]
@@ -40,7 +40,7 @@ dependencies = [
 [[package]]
 name = "disastle-rust"
 version = "0.1.0"
-source = "git+https://github.com/nthieu173/disastle-rust.git#ab4010a4f89c1bc43b1d83c5c687d13a5f8b3c7e"
+source = "git+https://github.com/nthieu173/disastle-rust.git#04b74845c76fcc1504d083a6e92b27a2e033d8c6"
 dependencies = [
  "disastle-castle-rust",
  "rand",
