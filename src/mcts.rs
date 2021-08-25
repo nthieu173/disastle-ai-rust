@@ -10,7 +10,7 @@ pub fn tree_search(start_node: &mut ShallowNode) {
     let mut actions = Vec::new();
     let mut curr: &ShallowNode = start_node;
     loop {
-        if let Some(action) = start_node.selection() {
+        if let Some(action) = curr.selection() {
             actions.push(action);
             curr = curr.children.get(&action).unwrap();
         } else {
@@ -29,15 +29,15 @@ pub fn tree_search(start_node: &mut ShallowNode) {
         curr.num_win += 1.0;
         curr.num_play += 1.0;
         for action in actions {
-            let mut curr = curr.children.get_mut(&action).unwrap();
+            curr = curr.children.get_mut(&action).unwrap();
             curr.num_win += 1.0;
             curr.num_play += 1.0;
         }
     } else {
         let mut curr: &mut ShallowNode = start_node;
         curr.num_play += 1.0;
-        for action in actions {
-            let mut curr = curr.children.get_mut(&action).unwrap();
+        for action in actions.iter() {
+            curr = curr.children.get_mut(action).unwrap();
             curr.num_play += 1.0;
         }
     }
@@ -106,7 +106,7 @@ impl ShallowNode {
         if !self.state.is_over() {
             let mut is_random = false;
             let mut new_nodes = Vec::new();
-            let turn_player = &self.state.get_turn_index().to_string();
+            let turn_player = &self.state.turn_order[self.state.turn_index];
             for action in self.state.possible_actions(turn_player) {
                 let new_node = ShallowNode {
                     player: self.player.clone(),
@@ -139,11 +139,13 @@ impl ShallowNode {
         let mut game = self.state.clone();
         let mut rng = thread_rng();
         while !game.is_over() {
-            let turn_player = &game.turn_order[game.turn_index];
-            let actions = self.state.possible_actions(turn_player);
-            game = game
-                .action(turn_player, actions.into_iter().choose(&mut rng).unwrap())
-                .unwrap();
+            let turn_player = game.turn_order[game.turn_index].clone();
+            let actions = game.possible_actions(&turn_player);
+            if actions.len() == 0 {
+                break;
+            }
+            let chosen_action = actions.into_iter().choose(&mut rng).unwrap();
+            game = game.action(&turn_player, chosen_action).unwrap();
         }
         game.is_victorious(&self.player)
     }
