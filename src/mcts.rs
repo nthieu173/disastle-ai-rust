@@ -8,11 +8,19 @@ const LARGE_NUMBER_FOR_UNEXPLORED: f32 = 1000000.0;
 
 pub fn tree_search(start_node: &mut ShallowNode) {
     let mut actions = Vec::new();
-    let mut curr: &ShallowNode = start_node;
+    let mut curr: &mut ShallowNode = start_node;
     loop {
         if let Some(action) = curr.selection() {
-            actions.push(action);
-            curr = curr.children.get(&action).unwrap();
+            actions.push(action.clone());
+            let mut child = curr.children.get_mut(&action).unwrap();
+            // We redeal the shop (reapply the action) because this child is random
+            if child.is_random {
+                child.state = curr
+                    .state
+                    .action(&curr.state.turn_order[curr.state.turn_index], action)
+                    .unwrap();
+            }
+            curr = child;
         } else {
             break;
         }
@@ -21,7 +29,9 @@ pub fn tree_search(start_node: &mut ShallowNode) {
     for action in actions.iter() {
         leaf = leaf.children.get_mut(action).unwrap();
     }
-    leaf = leaf.expand();
+    if let Some(action) = leaf.expand() {
+        leaf = leaf.children.get_mut(&action).unwrap();
+    }
     // Simulation and backpropagation
     if leaf.simulate() {
         drop(leaf);
@@ -51,6 +61,7 @@ pub struct ShallowNode {
     pub num_win: f32,
     pub num_play: f32,
     pub children: HashMap<Action, ShallowNode>,
+    pub is_random: bool,
 }
 
 impl ShallowNode {
@@ -74,9 +85,14 @@ impl ShallowNode {
         let mut max_score = 0.0;
         let mut max_action: &Action = self.children.keys().next().unwrap();
         for (action, node) in self.children.iter() {
-            let score = node.num_win / node.num_play;
-            if score > max_score {
-                max_score = score;
+            let win_rate: f32;
+            if node.state.is_turn_player(&self.player) {
+                win_rate = node.num_win / node.num_play;
+            } else {
+                win_rate = 1.0 - node.num_win / node.num_play; // Minimax
+            }
+            if win_rate > max_score {
+                max_score = win_rate;
                 max_action = action;
             }
         }
@@ -100,40 +116,30 @@ impl ShallowNode {
     /*
      * Expand the leaf node and choose one random child to become the new leaf node.
      * If there are no children (terminal state) or if the expansion would rely on randomness
-     * (the round incremented and the shop was dealt), we immediately backpropagate.
+     * (the round incremented and the shop was dealt), we do not expand.
      */
-    pub fn expand(&mut self) -> &mut ShallowNode {
-        if !self.state.is_over() {
-            let mut is_random = false;
-            let mut new_nodes = Vec::new();
-            let turn_player = &self.state.turn_order[self.state.turn_index];
-            for action in self.state.possible_actions(turn_player) {
-                let new_node = ShallowNode {
-                    player: self.player.clone(),
-                    state: self.state.action(turn_player, action).unwrap(),
-                    num_win: 0.0,
-                    num_play: 0.0,
-                    children: HashMap::new(),
-                };
-                if new_node.state.round == self.state.round {
-                    new_nodes.push((action, new_node));
-                } else {
-                    is_random = true;
-                    break;
-                }
-            }
-            if !is_random {
-                for (action, new_node) in new_nodes {
-                    self.children.insert(action, new_node);
-                }
-                return self
-                    .children
-                    .values_mut()
-                    .choose(&mut thread_rng())
-                    .unwrap();
-            }
+    pub fn expand(&mut self) -> Option<Action> {
+        if self.state.is_over() || self.is_random {
+            return None;
         }
-        return self;
+        let turn_player = &self.state.turn_order[self.state.turn_index];
+        for action in self.state.possible_actions(turn_player) {
+            let new_state = self.state.action(turn_player, action).unwrap();
+            let new_node = ShallowNode {
+                player: self.player.clone(),
+                is_random: self.state.round < new_state.round, // Shop was dealt because round was incremented
+                state: new_state,
+                num_win: 0.0,
+                num_play: 0.0,
+                children: HashMap::new(),
+            };
+            self.children.insert(action, new_node);
+        }
+        if let Some(action) = self.children.keys().choose(&mut thread_rng()) {
+            return Some(*action);
+        } else {
+            return None;
+        }
     }
     pub fn simulate(&self) -> bool {
         let mut game = self.state.clone();
